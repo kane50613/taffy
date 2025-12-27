@@ -136,6 +136,7 @@ use crate::style::{FlexboxContainerStyle, FlexboxItemStyle};
 #[cfg(feature = "grid")]
 use crate::style::{GridContainerStyle, GridItemStyle};
 use crate::CheapCloneStr;
+use crate::Direction;
 #[cfg(feature = "block_layout")]
 use crate::{BlockContainerStyle, BlockItemStyle};
 
@@ -331,6 +332,7 @@ pub(crate) trait LayoutPartialTreeExt: LayoutPartialTree {
         available_space: Size<AvailableSpace>,
         sizing_mode: SizingMode,
         axis: AbsoluteAxis,
+        direction: Direction,
         vertical_margins_are_collapsible: Line<bool>,
     ) -> f32 {
         self.compute_child_layout(
@@ -341,6 +343,7 @@ pub(crate) trait LayoutPartialTreeExt: LayoutPartialTree {
                 available_space,
                 sizing_mode,
                 axis: axis.into(),
+                direction,
                 run_mode: RunMode::ComputeSize,
                 vertical_margins_are_collapsible,
             },
@@ -359,6 +362,7 @@ pub(crate) trait LayoutPartialTreeExt: LayoutPartialTree {
         parent_size: Size<Option<f32>>,
         available_space: Size<AvailableSpace>,
         sizing_mode: SizingMode,
+        direction: Direction,
         vertical_margins_are_collapsible: Line<bool>,
     ) -> Size<f32> {
         self.compute_child_layout(
@@ -369,6 +373,7 @@ pub(crate) trait LayoutPartialTreeExt: LayoutPartialTree {
                 available_space,
                 sizing_mode,
                 axis: RequestedAxis::Both,
+                direction,
                 run_mode: RunMode::ComputeSize,
                 vertical_margins_are_collapsible,
             },
@@ -378,6 +383,7 @@ pub(crate) trait LayoutPartialTreeExt: LayoutPartialTree {
 
     /// Perform a full layout on the node given the specified constraints
     #[inline(always)]
+    #[allow(clippy::too_many_arguments)]
     fn perform_child_layout(
         &mut self,
         node_id: NodeId,
@@ -385,6 +391,7 @@ pub(crate) trait LayoutPartialTreeExt: LayoutPartialTree {
         parent_size: Size<Option<f32>>,
         available_space: Size<AvailableSpace>,
         sizing_mode: SizingMode,
+        direction: Direction,
         vertical_margins_are_collapsible: Line<bool>,
     ) -> LayoutOutput {
         self.compute_child_layout(
@@ -395,6 +402,7 @@ pub(crate) trait LayoutPartialTreeExt: LayoutPartialTree {
                 available_space,
                 sizing_mode,
                 axis: RequestedAxis::Both,
+                direction,
                 run_mode: RunMode::PerformLayout,
                 vertical_margins_are_collapsible,
             },
