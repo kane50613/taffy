@@ -28,7 +28,7 @@ struct BlockItem {
     /// Items that are tables don't have stretch sizing applied to them
     is_table: bool,
 
-    /// Direction (LTR or RTL)
+    /// The item's direction
     direction: Direction,
 
     /// The base size of this item
