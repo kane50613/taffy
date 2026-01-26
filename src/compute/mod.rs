@@ -172,7 +172,6 @@ pub fn compute_root_layout(tree: &mut impl LayoutPartialTree, root: NodeId, avai
         width: if style.overflow().y == Overflow::Scroll { style.scrollbar_width() } else { 0.0 },
         height: if style.overflow().x == Overflow::Scroll { style.scrollbar_width() } else { 0.0 },
     };
-    let direction = style.direction();
     drop(style);
 
     // Recursively compute node layout
@@ -182,7 +181,6 @@ pub fn compute_root_layout(tree: &mut impl LayoutPartialTree, root: NodeId, avai
         available_space.into_options(),
         available_space,
         SizingMode::InherentSize,
-        direction,
         Line::FALSE,
     );
 

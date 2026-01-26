@@ -45,9 +45,10 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
     node: NodeId,
     inputs: LayoutInput,
 ) -> LayoutOutput {
-    let LayoutInput { known_dimensions, parent_size, available_space, run_mode, direction, .. } = inputs;
+    let LayoutInput { known_dimensions, parent_size, available_space, run_mode, .. } = inputs;
 
     let style = tree.get_grid_container_style(node);
+    let direction = style.direction();
 
     // 1. Compute "available grid space"
     // https://www.w3.org/TR/css-grid-1/#available-grid-space
@@ -548,7 +549,6 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
 
         // Position hidden child
         if child_style.box_generation_mode() == BoxGenerationMode::None {
-            let direction = child_style.direction();
             drop(child_style);
             tree.set_unrounded_layout(child, &Layout::with_order(order));
             tree.perform_child_layout(
@@ -557,7 +557,6 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
                 Size::NONE,
                 Size::MAX_CONTENT,
                 SizingMode::InherentSize,
-                direction,
                 Line::FALSE,
             );
             order += 1;
