@@ -6,6 +6,7 @@ fn block_padding_rtl__border_box() {
     let mut taffy = crate::new_test_tree();
     let node0 = taffy
         .new_leaf(taffy::style::Style {
+            direction: taffy::style::Direction::Rtl,
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),
                 height: taffy::style::Dimension::from_length(10f32),
@@ -58,6 +59,7 @@ fn block_padding_rtl__content_box() {
     let node0 = taffy
         .new_leaf(taffy::style::Style {
             box_sizing: taffy::style::BoxSizing::ContentBox,
+            direction: taffy::style::Direction::Rtl,
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),
                 height: taffy::style::Dimension::from_length(10f32),

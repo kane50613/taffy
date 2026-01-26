@@ -6,6 +6,7 @@ fn grid_absolute_direction_rtl__border_box() {
     let mut taffy = crate::new_test_tree();
     let node0 = taffy
         .new_leaf(taffy::style::Style {
+            direction: taffy::style::Direction::Rtl,
             position: taffy::style::Position::Absolute,
             grid_row: taffy::geometry::Line { start: line(1i16), end: line(2i16) },
             grid_column: taffy::geometry::Line { start: line(1i16), end: line(2i16) },
@@ -59,6 +60,7 @@ fn grid_absolute_direction_rtl__content_box() {
     let node0 = taffy
         .new_leaf(taffy::style::Style {
             box_sizing: taffy::style::BoxSizing::ContentBox,
+            direction: taffy::style::Direction::Rtl,
             position: taffy::style::Position::Absolute,
             grid_row: taffy::geometry::Line { start: line(1i16), end: line(2i16) },
             grid_column: taffy::geometry::Line { start: line(1i16), end: line(2i16) },
