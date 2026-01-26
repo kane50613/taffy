@@ -495,7 +495,6 @@ fn resolve_item_baselines(
                 inner_node_size,
                 Size::MIN_CONTENT,
                 SizingMode::InherentSize,
-                item.direction,
                 Line::FALSE,
             );
 

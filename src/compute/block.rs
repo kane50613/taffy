@@ -205,8 +205,6 @@ struct BlockItem {
     #[cfg(feature = "float_layout")]
     /// The `clear` style of the node
     clear: Clear,
-    /// The item's direction
-    direction: Direction,
 
     /// The base size of this item
     size: Size<Option<f32>>,
@@ -342,6 +340,7 @@ fn compute_inner(
     let aspect_ratio = style.aspect_ratio();
     let padding = raw_padding.resolve_or_zero(parent_size.width, |val, basis| tree.calc(val, basis));
     let border = raw_border.resolve_or_zero(parent_size.width, |val, basis| tree.calc(val, basis));
+    let direction = style.direction();
 
     // Scrollbar gutters are reserved when the `overflow` property is set to `Overflow::Scroll`.
     // However, the axis are switched (transposed) because a node that scrolls vertically needs
@@ -351,7 +350,7 @@ fn compute_inner(
             Overflow::Scroll => style.scrollbar_width(),
             _ => 0.0,
         });
-        match inputs.direction {
+        match direction {
             Direction::Ltr => Rect { top: 0.0, left: 0.0, right: offsets.x, bottom: offsets.y },
             Direction::Rtl => Rect { top: 0.0, left: offsets.x, right: 0.0, bottom: offsets.y },
         }
@@ -412,11 +411,10 @@ fn compute_inner(
         || matches!(min_size.height, Some(h) if h > 0.0);
 
     let text_align = style.text_align();
-
     drop(style);
 
     // 1. Generate items
-    let mut items = generate_item_list(tree, node_id, container_content_box_size, inputs.direction);
+    let mut items = generate_item_list(tree, node_id, container_content_box_size);
 
     // 2. Compute container width
     let container_outer_width = known_dimensions.width.unwrap_or_else(|| {
@@ -447,7 +445,7 @@ fn compute_inner(
             content_box_inset,
             resolved_content_box_inset,
             text_align,
-            inputs.direction,
+            direction,
             own_margins_collapse_with_children,
             block_ctx,
         );
@@ -478,7 +476,7 @@ fn compute_inner(
         &items,
         absolute_position_area,
         absolute_position_offset,
-        inputs.direction,
+        direction,
     );
 
     // 5. Perform hidden layout on hidden children
@@ -487,7 +485,6 @@ fn compute_inner(
         let child = tree.get_child_id(node_id, order);
         let child_style = tree.get_block_child_style(child);
         if child_style.box_generation_mode() == BoxGenerationMode::None {
-            let direction = child_style.direction();
             drop(child_style);
             tree.set_unrounded_layout(child, &Layout::with_order(order as u32));
             tree.perform_child_layout(
@@ -496,7 +493,6 @@ fn compute_inner(
                 Size::NONE,
                 Size::MAX_CONTENT,
                 SizingMode::InherentSize,
-                direction,
                 Line::FALSE,
             );
         }
@@ -539,7 +535,6 @@ fn generate_item_list(
     tree: &impl LayoutBlockContainer,
     node: NodeId,
     node_inner_size: Size<Option<f32>>,
-    direction: Direction,
 ) -> Vec<BlockItem> {
     tree.child_ids(node)
         .map(|child_node_id| (child_node_id, tree.get_block_child_style(child_node_id)))
@@ -580,8 +575,6 @@ fn generate_item_list(
                 float,
                 #[cfg(feature = "float_layout")]
                 clear: child_style.clear(),
-
-                direction,
                 size: child_style
                     .size()
                     .maybe_resolve(node_inner_size, |val, basis| tree.calc(val, basis))
@@ -641,7 +634,6 @@ fn determine_content_based_container_width(
                 Size::NONE,
                 available_space.map_width(|w| w.maybe_sub(item_x_margin_sum)),
                 SizingMode::InherentSize,
-                item.direction,
                 Line::TRUE,
             );
 
@@ -743,7 +735,6 @@ fn perform_final_layout_on_in_flow_children(
                     // available_space,
                     Size::MAX_CONTENT,
                     SizingMode::InherentSize,
-                    item.direction,
                     Line::TRUE,
                 );
                 let margin_box = item_layout.size + item_non_auto_margin.sum_axes();
@@ -863,7 +854,6 @@ fn perform_final_layout_on_in_flow_children(
                 axis: RequestedAxis::Both,
                 known_dimensions,
                 parent_size,
-                direction: item.direction,
                 available_space: available_space.map_width(|_| AvailableSpace::Definite(stretch_width)),
                 vertical_margins_are_collapsible: if item.is_in_same_bfc { Line::TRUE } else { Line::FALSE },
             };
@@ -1176,7 +1166,6 @@ fn perform_absolute_layout_on_absolute_children(
                 height: AvailableSpace::Definite(area_height.maybe_clamp(min_size.height, max_size.height)),
             },
             SizingMode::ContentSize,
-            item.direction,
             Line::FALSE,
         );
 
@@ -1191,7 +1180,6 @@ fn perform_absolute_layout_on_absolute_children(
                 height: AvailableSpace::Definite(area_height.maybe_clamp(min_size.height, max_size.height)),
             },
             SizingMode::ContentSize,
-            item.direction,
             Line::FALSE,
         );
 
