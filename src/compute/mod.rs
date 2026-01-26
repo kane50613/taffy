@@ -77,6 +77,7 @@ pub struct ContentSlot {
     pub height: f32,
 }
 
+#[cfg(any(feature = "float_layout", feature = "block_layout"))]
 impl ContentSlot {
     /// The distance of the left edge of the slot from the left side of it's container
     #[inline(always)]
