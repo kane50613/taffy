@@ -6,6 +6,7 @@ fn grid_justify_self_rtl__border_box() {
     let mut taffy = crate::new_test_tree();
     let node0 = taffy
         .new_leaf(taffy::style::Style {
+            direction: taffy::style::Direction::Rtl,
             justify_self: Some(taffy::style::JustifySelf::Start),
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),
@@ -16,6 +17,7 @@ fn grid_justify_self_rtl__border_box() {
         .unwrap();
     let node1 = taffy
         .new_leaf(taffy::style::Style {
+            direction: taffy::style::Direction::Rtl,
             justify_self: Some(taffy::style::JustifySelf::End),
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),
@@ -26,6 +28,7 @@ fn grid_justify_self_rtl__border_box() {
         .unwrap();
     let node2 = taffy
         .new_leaf(taffy::style::Style {
+            direction: taffy::style::Direction::Rtl,
             justify_self: Some(taffy::style::JustifySelf::Center),
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),
@@ -36,6 +39,7 @@ fn grid_justify_self_rtl__border_box() {
         .unwrap();
     let node3 = taffy
         .new_leaf(taffy::style::Style {
+            direction: taffy::style::Direction::Rtl,
             justify_self: Some(taffy::style::JustifySelf::Stretch),
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),
@@ -101,6 +105,7 @@ fn grid_justify_self_rtl__content_box() {
     let node0 = taffy
         .new_leaf(taffy::style::Style {
             box_sizing: taffy::style::BoxSizing::ContentBox,
+            direction: taffy::style::Direction::Rtl,
             justify_self: Some(taffy::style::JustifySelf::Start),
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),
@@ -112,6 +117,7 @@ fn grid_justify_self_rtl__content_box() {
     let node1 = taffy
         .new_leaf(taffy::style::Style {
             box_sizing: taffy::style::BoxSizing::ContentBox,
+            direction: taffy::style::Direction::Rtl,
             justify_self: Some(taffy::style::JustifySelf::End),
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),
@@ -123,6 +129,7 @@ fn grid_justify_self_rtl__content_box() {
     let node2 = taffy
         .new_leaf(taffy::style::Style {
             box_sizing: taffy::style::BoxSizing::ContentBox,
+            direction: taffy::style::Direction::Rtl,
             justify_self: Some(taffy::style::JustifySelf::Center),
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),
@@ -134,6 +141,7 @@ fn grid_justify_self_rtl__content_box() {
     let node3 = taffy
         .new_leaf(taffy::style::Style {
             box_sizing: taffy::style::BoxSizing::ContentBox,
+            direction: taffy::style::Direction::Rtl,
             justify_self: Some(taffy::style::JustifySelf::Stretch),
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),

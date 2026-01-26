@@ -414,7 +414,6 @@ fn generate_node(ident: &str, node: &Value) -> TokenStream {
     let direction = match style["direction"] {
         Value::String(ref value) => match value.as_ref() {
             "rtl" => quote!(direction: taffy::style::Direction::Rtl,),
-            "ltr" => quote!(direction: taffy::style::Direction::Ltr,),
             _ => quote!(),
         },
         _ => quote!(),

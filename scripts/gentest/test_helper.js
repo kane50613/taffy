@@ -208,7 +208,7 @@ function describeElement(e) {
       boxSizing: parseEnum(computedStyle.boxSizing),
 
       position: parseEnum(e.style.position),
-      direction: parseEnum(e.style.direction),
+      direction: parseEnum(computedStyle.direction),
 
       writingMode: parseEnum(e.style.writingMode),
 

@@ -6,6 +6,7 @@ fn flex_absolute_direction_rtl__border_box() {
     let mut taffy = crate::new_test_tree();
     let node0 = taffy
         .new_leaf(taffy::style::Style {
+            direction: taffy::style::Direction::Rtl,
             position: taffy::style::Position::Absolute,
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),
@@ -17,6 +18,7 @@ fn flex_absolute_direction_rtl__border_box() {
         .unwrap();
     let node1 = taffy
         .new_leaf(taffy::style::Style {
+            direction: taffy::style::Direction::Rtl,
             position: taffy::style::Position::Absolute,
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),
@@ -28,6 +30,7 @@ fn flex_absolute_direction_rtl__border_box() {
         .unwrap();
     let node2 = taffy
         .new_leaf(taffy::style::Style {
+            direction: taffy::style::Direction::Rtl,
             position: taffy::style::Position::Absolute,
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),
@@ -89,6 +92,7 @@ fn flex_absolute_direction_rtl__content_box() {
     let node0 = taffy
         .new_leaf(taffy::style::Style {
             box_sizing: taffy::style::BoxSizing::ContentBox,
+            direction: taffy::style::Direction::Rtl,
             position: taffy::style::Position::Absolute,
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),
@@ -101,6 +105,7 @@ fn flex_absolute_direction_rtl__content_box() {
     let node1 = taffy
         .new_leaf(taffy::style::Style {
             box_sizing: taffy::style::BoxSizing::ContentBox,
+            direction: taffy::style::Direction::Rtl,
             position: taffy::style::Position::Absolute,
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),
@@ -113,6 +118,7 @@ fn flex_absolute_direction_rtl__content_box() {
     let node2 = taffy
         .new_leaf(taffy::style::Style {
             box_sizing: taffy::style::BoxSizing::ContentBox,
+            direction: taffy::style::Direction::Rtl,
             position: taffy::style::Position::Absolute,
             size: taffy::geometry::Size {
                 width: taffy::style::Dimension::from_length(20f32),

@@ -6,6 +6,7 @@ fn grid_justify_items_sized_start_direction_rtl__border_box() {
     let mut taffy = crate::new_test_tree();
     let node0 = taffy
         .new_leaf(taffy::style::Style {
+            direction: taffy::style::Direction::Rtl,
             grid_row: taffy::geometry::Line { start: line(1i16), end: taffy::style::GridPlacement::Auto },
             grid_column: taffy::geometry::Line { start: line(1i16), end: taffy::style::GridPlacement::Auto },
             size: taffy::geometry::Size {
@@ -17,6 +18,7 @@ fn grid_justify_items_sized_start_direction_rtl__border_box() {
         .unwrap();
     let node1 = taffy
         .new_leaf(taffy::style::Style {
+            direction: taffy::style::Direction::Rtl,
             grid_row: taffy::geometry::Line { start: line(3i16), end: taffy::style::GridPlacement::Auto },
             grid_column: taffy::geometry::Line { start: line(3i16), end: taffy::style::GridPlacement::Auto },
             size: taffy::geometry::Size {
@@ -76,6 +78,7 @@ fn grid_justify_items_sized_start_direction_rtl__content_box() {
     let node0 = taffy
         .new_leaf(taffy::style::Style {
             box_sizing: taffy::style::BoxSizing::ContentBox,
+            direction: taffy::style::Direction::Rtl,
             grid_row: taffy::geometry::Line { start: line(1i16), end: taffy::style::GridPlacement::Auto },
             grid_column: taffy::geometry::Line { start: line(1i16), end: taffy::style::GridPlacement::Auto },
             size: taffy::geometry::Size {
@@ -88,6 +91,7 @@ fn grid_justify_items_sized_start_direction_rtl__content_box() {
     let node1 = taffy
         .new_leaf(taffy::style::Style {
             box_sizing: taffy::style::BoxSizing::ContentBox,
+            direction: taffy::style::Direction::Rtl,
             grid_row: taffy::geometry::Line { start: line(3i16), end: taffy::style::GridPlacement::Auto },
             grid_column: taffy::geometry::Line { start: line(3i16), end: taffy::style::GridPlacement::Auto },
             size: taffy::geometry::Size {
