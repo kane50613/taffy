@@ -213,6 +213,7 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
         &mut cell_occupancy_matrix,
         &mut items,
         in_flow_children_iter,
+        direction,
         style.grid_auto_flow(),
         align_items.unwrap_or(AlignItems::Stretch),
         justify_items.unwrap_or(AlignItems::Stretch),
@@ -476,13 +477,21 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
 
     // 8. Track Alignment
 
+    if direction.is_rtl() {
+        reverse_non_gutter_tracks(&mut columns);
+    }
+
     // Align columns
     align_tracks(
         container_content_box.get(AbstractAxis::Inline),
-        Line { start: padding.left, end: padding.right },
+        Line {
+            start: padding.left + if direction.is_rtl() { scrollbar_gutter.x } else { 0.0 },
+            end: padding.right + if direction.is_rtl() { 0.0 } else { scrollbar_gutter.x },
+        },
         Line { start: border.left, end: border.right },
         &mut columns,
         justify_content,
+        direction.is_rtl(),
     );
     // Align rows
     align_tracks(
@@ -491,6 +500,7 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
         Line { start: border.top, end: border.bottom },
         &mut rows,
         align_content,
+        false,
     );
 
     // 9. Size, Align, and Position Grid Items
@@ -505,22 +515,11 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
 
     // Position in-flow children (stored in items vector)
     for (index, item) in items.iter_mut().enumerate() {
-        let (left, right) = match direction {
-            Direction::Ltr => (
-                columns[item.column_indexes.start as usize + 1].offset,
-                columns[item.column_indexes.end as usize].offset,
-            ),
-            Direction::Rtl => (
-                container_border_box.width - columns[item.column_indexes.end as usize].offset,
-                container_border_box.width - columns[item.column_indexes.start as usize + 1].offset,
-            ),
-        };
-
         let grid_area = Rect {
             top: rows[item.row_indexes.start as usize + 1].offset,
             bottom: rows[item.row_indexes.end as usize].offset,
-            left,
-            right,
+            left: columns[item.column_indexes.start as usize + 1].offset,
+            right: columns[item.column_indexes.end as usize].offset,
         };
         #[cfg_attr(not(feature = "content_size"), allow(unused_variables))]
         let (content_size_contribution, y_position, height) = align_and_position_item(
@@ -572,7 +571,15 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
                 .into_origin_zero(final_col_counts.explicit)
                 .resolve_absolutely_positioned_grid_tracks()
                 .map(|maybe_grid_line| {
-                    maybe_grid_line.and_then(|line: OriginZeroLine| line.try_into_track_vec_index(final_col_counts))
+                    maybe_grid_line
+                        .map(|line: OriginZeroLine| {
+                            if direction.is_rtl() {
+                                OriginZeroLine(final_col_counts.explicit as i16 - line.0)
+                            } else {
+                                line
+                            }
+                        })
+                        .and_then(|line| line.try_into_track_vec_index(final_col_counts))
                 });
             // Convert grid-row-{start/end} into Option's of indexes into the row vector
             // The Option is None if the style property is Auto and an unresolvable Span
@@ -584,33 +591,26 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
                     maybe_grid_line.and_then(|line: OriginZeroLine| line.try_into_track_vec_index(final_row_counts))
                 });
 
-            let (left, right) = match direction {
-                Direction::Ltr => (
-                    maybe_col_indexes.start.map(|index| columns[index].offset).unwrap_or(border.left),
-                    maybe_col_indexes
-                        .end
-                        .map(|index| columns[index].offset)
-                        .unwrap_or(container_border_box.width - border.right - scrollbar_gutter.x),
-                ),
-                Direction::Rtl => (
-                    maybe_col_indexes
-                        .end
-                        .map(|index| container_border_box.width - columns[index].offset)
-                        .unwrap_or(border.left + scrollbar_gutter.x),
-                    maybe_col_indexes
-                        .start
-                        .map(|index| container_border_box.width - columns[index].offset)
-                        .unwrap_or(container_border_box.width - border.right),
-                ),
-            };
             let grid_area = Rect {
                 top: maybe_row_indexes.start.map(|index| rows[index].offset).unwrap_or(border.top),
                 bottom: maybe_row_indexes
                     .end
                     .map(|index| rows[index].offset)
                     .unwrap_or(container_border_box.height - border.bottom - scrollbar_gutter.y),
-                left,
-                right,
+                left: maybe_col_indexes.start.map(|index| columns[index].offset).unwrap_or_else(|| {
+                    if direction.is_rtl() {
+                        border.left + scrollbar_gutter.x
+                    } else {
+                        border.left
+                    }
+                }),
+                right: maybe_col_indexes.end.map(|index| columns[index].offset).unwrap_or_else(|| {
+                    if direction.is_rtl() {
+                        container_border_box.width - border.right
+                    } else {
+                        container_border_box.width - border.right - scrollbar_gutter.x
+                    }
+                }),
             };
             drop(child_style);
 
@@ -671,6 +671,23 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
         item_content_size_contribution,
         Point { x: None, y: Some(grid_container_baseline) },
     )
+}
+
+/// Reverses only non-gutter column tracks in-place while preserving line/gutter slots.
+fn reverse_non_gutter_tracks(tracks: &mut [GridTrack]) {
+    // Need at least two non-gutter tracks to reverse (minimum length 5).
+    const MIN_TRACK_VEC_LEN_TO_REVERSE_COLUMNS: usize = 5;
+    if tracks.len() < MIN_TRACK_VEC_LEN_TO_REVERSE_COLUMNS {
+        return;
+    }
+
+    let mut left = 1;
+    let mut right = tracks.len() - 2;
+    while left < right {
+        tracks.swap(left, right);
+        left += 2;
+        right = right.saturating_sub(2);
+    }
 }
 
 /// Information from the computation of grid

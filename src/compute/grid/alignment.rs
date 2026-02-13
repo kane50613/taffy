@@ -20,10 +20,23 @@ pub(super) fn align_tracks(
     border: Line<f32>,
     tracks: &mut [GridTrack],
     track_alignment_style: AlignContent,
+    axis_is_reversed: bool,
 ) {
     let used_size: f32 = tracks.iter().map(|track| track.base_size).sum();
     let free_space = grid_container_content_box_size - used_size;
     let origin = padding.start + border.start;
+    let track_alignment_style = if axis_is_reversed {
+        match track_alignment_style {
+            AlignContent::Start => AlignContent::End,
+            AlignContent::End => AlignContent::Start,
+            AlignContent::FlexStart => AlignContent::FlexEnd,
+            AlignContent::FlexEnd => AlignContent::FlexStart,
+            AlignContent::Stretch => AlignContent::End,
+            style => style,
+        }
+    } else {
+        track_alignment_style
+    };
 
     // Count the number of non-collapsed tracks (not counting gutters)
     let num_tracks = tracks.iter().skip(1).step_by(2).filter(|track| !track.is_collapsed).count();
