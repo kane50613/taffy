@@ -27,10 +27,7 @@ pub(crate) fn compute_content_size_contribution(
         let max_y = f32_max(location.y + size_content_size_contribution.height, 0.0);
         let min_y = f32_min(location.y, 0.0);
 
-        Size {
-            width: max_x - min_x,
-            height: max_y - min_y,
-        }
+        Size { width: max_x - min_x, height: max_y - min_y }
     } else {
         Size::ZERO
     }
