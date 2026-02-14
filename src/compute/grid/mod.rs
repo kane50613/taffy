@@ -19,10 +19,10 @@ use placement::place_grid_items;
 use track_sizing::{
     determine_if_item_crosses_flexible_or_intrinsic_tracks, resolve_item_track_indexes, track_sizing_algorithm,
 };
-use types::{CellOccupancyMatrix, GridTrack, NamedLineResolver};
+use types::{CellOccupancyMatrix, GridTrack, NamedLineResolver, TrackCounts};
 
 #[cfg(feature = "detailed_layout_info")]
-use types::{GridItem, GridTrackKind, TrackCounts};
+use types::{GridItem, GridTrackKind};
 
 pub(crate) use types::{GridCoordinate, GridLine, OriginZeroLine};
 
