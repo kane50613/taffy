@@ -25,19 +25,6 @@ pub(super) fn align_tracks(
     let used_size: f32 = tracks.iter().map(|track| track.base_size).sum();
     let free_space = grid_container_content_box_size - used_size;
     let origin = padding.start + border.start;
-    let track_alignment_style = if axis_is_reversed {
-        match track_alignment_style {
-            AlignContent::Start => AlignContent::End,
-            AlignContent::End => AlignContent::Start,
-            AlignContent::FlexStart => AlignContent::FlexEnd,
-            AlignContent::FlexEnd => AlignContent::FlexStart,
-            AlignContent::Stretch => AlignContent::End,
-            style => style,
-        }
-    } else {
-        track_alignment_style
-    };
-
     // Count the number of non-collapsed tracks (not counting gutters)
     let num_tracks = tracks.iter().skip(1).step_by(2).filter(|track| !track.is_collapsed).count();
 
@@ -47,24 +34,41 @@ pub(super) fn align_tracks(
     let layout_is_reversed = false;
     let is_safe = false; // TODO: Implement safe alignment
     let track_alignment = apply_alignment_fallback(free_space, num_tracks, track_alignment_style, is_safe);
+    let track_alignment = if axis_is_reversed {
+        match track_alignment {
+            AlignContent::Start => AlignContent::End,
+            AlignContent::End => AlignContent::Start,
+            AlignContent::FlexStart => AlignContent::FlexEnd,
+            AlignContent::FlexEnd => AlignContent::FlexStart,
+            AlignContent::Stretch => AlignContent::End,
+            style => style,
+        }
+    } else {
+        track_alignment
+    };
 
     // Compute offsets
     let mut total_offset = origin;
+    let mut seen_non_collapsed_track = false;
     tracks.iter_mut().enumerate().for_each(|(i, track)| {
         // Odd tracks are gutters (but slices are zero-indexed, so odd tracks have even indices)
         let is_gutter = i % 2 == 0;
+        let is_non_collapsed_track = !is_gutter && !track.is_collapsed;
 
-        // The first non-gutter track is index 1
-        let is_first = i == 1;
+        // Alignment offsets should be applied only to non-collapsed tracks.
+        let is_first = is_non_collapsed_track && !seen_non_collapsed_track;
 
-        let offset = if is_gutter {
-            0.0
-        } else {
+        let offset = if is_non_collapsed_track {
             compute_alignment_offset(free_space, num_tracks, gap, track_alignment, layout_is_reversed, is_first)
+        } else {
+            0.0
         };
 
         track.offset = total_offset + offset;
         total_offset = total_offset + offset + track.base_size;
+        if is_non_collapsed_track {
+            seen_non_collapsed_track = true;
+        }
     });
 }
 
@@ -342,12 +346,17 @@ pub(super) fn align_item_within_area(
     };
 
     let offset_within_area = if position == Position::Absolute {
-        if let Some(start) = inset.start {
-            start + non_auto_margin.start
-        } else if let Some(end) = inset.end {
-            grid_area_size - end - resolved_size - non_auto_margin.end
-        } else {
-            alignment_based_offset
+        match (inset.start, inset.end) {
+            (Some(start), Some(end)) => {
+                if direction.is_rtl() {
+                    grid_area_size - end - resolved_size - non_auto_margin.end
+                } else {
+                    start + non_auto_margin.start
+                }
+            }
+            (Some(start), None) => start + non_auto_margin.start,
+            (None, Some(end)) => grid_area_size - end - resolved_size - non_auto_margin.end,
+            (None, None) => alignment_based_offset,
         }
     } else {
         alignment_based_offset
@@ -355,7 +364,12 @@ pub(super) fn align_item_within_area(
 
     let mut start = grid_area.start + offset_within_area;
     if position == Position::Relative {
-        start += inset.start.or(inset.end.map(|pos| -pos)).unwrap_or(0.0);
+        let relative_inset = if direction.is_rtl() {
+            inset.end.map(|pos| -pos).or(inset.start)
+        } else {
+            inset.start.or(inset.end.map(|pos| -pos))
+        };
+        start += relative_inset.unwrap_or(0.0);
     }
 
     (start, resolved_margin)

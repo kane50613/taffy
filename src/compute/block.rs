@@ -919,7 +919,11 @@ fn perform_final_layout_on_in_flow_children(
                 p.maybe_resolve(s, |val, basis| tree.calc(val, basis))
             });
             let inset_offset = Point {
-                x: inset.left.or(inset.right.map(|x| -x)).unwrap_or(0.0),
+                x: if direction.is_rtl() {
+                    inset.right.map(|x| -x).or(inset.left).unwrap_or(0.0)
+                } else {
+                    inset.left.or(inset.right.map(|x| -x)).unwrap_or(0.0)
+                },
                 y: inset.top.or(inset.bottom.map(|x| -x)).unwrap_or(0.0),
             };
 
@@ -1255,18 +1259,26 @@ fn perform_absolute_layout_on_absolute_children(
             bottom: margin.bottom.unwrap_or(auto_margin.bottom),
         };
 
+        let x_offset = match (left, right) {
+            (Some(left), Some(right)) => {
+                if direction.is_rtl() {
+                    area_size.width - final_size.width - right - resolved_margin.right
+                } else {
+                    left + resolved_margin.left
+                }
+            }
+            (Some(left), None) => left + resolved_margin.left,
+            (None, Some(right)) => area_size.width - final_size.width - right - resolved_margin.right,
+            (None, None) => {
+                if direction.is_rtl() {
+                    item.static_position.x - final_size.width - resolved_margin.right - area_offset.x
+                } else {
+                    item.static_position.x + resolved_margin.left - area_offset.x
+                }
+            }
+        };
         let location = Point {
-            x: left
-                .map(|left| left + resolved_margin.left)
-                .or(right.map(|right| area_size.width - final_size.width - right - resolved_margin.right))
-                .maybe_add(area_offset.x)
-                .unwrap_or_else(|| {
-                    if direction.is_rtl() {
-                        item.static_position.x - final_size.width - resolved_margin.right
-                    } else {
-                        item.static_position.x + resolved_margin.left
-                    }
-                }),
+            x: x_offset + area_offset.x,
             y: top
                 .map(|top| top + resolved_margin.top)
                 .or(bottom.map(|bottom| area_size.height - final_size.height - bottom - resolved_margin.bottom))
@@ -1297,8 +1309,9 @@ fn perform_absolute_layout_on_absolute_children(
 
         #[cfg(feature = "content_size")]
         {
+            let relative_location = Point { x: location.x - area_offset.x, y: location.y - area_offset.y };
             absolute_content_size = absolute_content_size.f32_max(compute_content_size_contribution(
-                location,
+                relative_location,
                 final_size,
                 layout_output.content_size,
                 item.overflow,

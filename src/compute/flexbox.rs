@@ -1787,7 +1787,13 @@ fn align_flex_items_along_cross_axis(
     let cross_axis_should_reverse = constants.is_column && matches!(constants.layout_direction, Direction::Rtl);
 
     match child.align_self {
-        AlignSelf::Start => 0.0,
+        AlignSelf::Start => {
+            if cross_axis_should_reverse {
+                free_space
+            } else {
+                0.0
+            }
+        }
         AlignSelf::FlexStart => {
             if constants.is_wrap_reverse ^ cross_axis_should_reverse {
                 free_space
@@ -1795,7 +1801,13 @@ fn align_flex_items_along_cross_axis(
                 0.0
             }
         }
-        AlignSelf::End => free_space,
+        AlignSelf::End => {
+            if cross_axis_should_reverse {
+                0.0
+            } else {
+                free_space
+            }
+        }
         AlignSelf::FlexEnd => {
             if constants.is_wrap_reverse ^ cross_axis_should_reverse {
                 0.0
@@ -1810,7 +1822,8 @@ fn align_flex_items_along_cross_axis(
             } else {
                 // Until we support vertical writing modes, baseline alignment only makes sense if
                 // the constants.direction is row, so we treat it as flex-start alignment in columns.
-                if constants.is_wrap_reverse ^ cross_axis_should_reverse {
+                let baseline_column_should_reverse = cross_axis_should_reverse && !constants.is_wrap;
+                if constants.is_wrap_reverse ^ baseline_column_should_reverse {
                     free_space
                 } else {
                     0.0
@@ -1919,27 +1932,35 @@ fn calculate_flex_item(
         ..
     } = layout_output;
 
-    let offset_main = if direction.is_row() && layout_direction.is_rtl() {
-        *total_offset_main
-            + item.offset_main
-            + item.margin.main_end(direction)
-            + (item.inset.main_end(direction).or(item.inset.main_start(direction).map(|pos| -pos)).unwrap_or(0.0))
+    let is_rtl_row = direction.is_row() && layout_direction.is_rtl();
+    let is_rtl_column = direction.is_column() && layout_direction.is_rtl();
+    let main_relative_inset = if is_rtl_row {
+        item.inset.main_end(direction).or(item.inset.main_start(direction).map(|pos| -pos)).unwrap_or(0.0)
     } else {
-        *total_offset_main
-            + item.offset_main
-            + item.margin.main_start(direction)
-            + (item.inset.main_start(direction).or(item.inset.main_end(direction).map(|pos| -pos)).unwrap_or(0.0))
+        item.inset.main_start(direction).or(item.inset.main_end(direction).map(|pos| -pos)).unwrap_or(0.0)
+    };
+    let cross_relative_inset = if is_rtl_column {
+        item.inset.cross_end(direction).map(|pos| -pos).or(item.inset.cross_start(direction)).unwrap_or(0.0)
+    } else {
+        item.inset.cross_start(direction).or(item.inset.cross_end(direction).map(|pos| -pos)).unwrap_or(0.0)
+    };
+    let effective_line_offset_cross = if is_rtl_column { 0.0 } else { line_offset_cross };
+
+    let offset_main = if is_rtl_row {
+        *total_offset_main + item.offset_main + item.margin.main_end(direction) + main_relative_inset
+    } else {
+        *total_offset_main + item.offset_main + item.margin.main_start(direction) + main_relative_inset
     };
 
     let offset_cross = total_offset_cross
         + item.offset_cross
-        + line_offset_cross
+        + effective_line_offset_cross
         + item.margin.cross_start(direction)
-        + (item.inset.cross_start(direction).or(item.inset.cross_end(direction).map(|pos| -pos)).unwrap_or(0.0));
+        + cross_relative_inset;
 
     if direction.is_row() {
         let baseline_offset_cross =
-            total_offset_cross + item.offset_cross + line_offset_cross + item.margin.cross_start(direction);
+            total_offset_cross + item.offset_cross + effective_line_offset_cross + item.margin.cross_start(direction);
         let inner_baseline = layout_output.first_baselines.y.unwrap_or(size.height);
         item.baseline = baseline_offset_cross + inner_baseline;
     } else {
@@ -1980,8 +2001,17 @@ fn calculate_flex_item(
 
     #[cfg(feature = "content_size")]
     {
-        *total_content_size =
-            total_content_size.f32_max(compute_content_size_contribution(location, size, content_size, item.overflow));
+        let contribution_location = if layout_direction.is_rtl() {
+            Point { x: container_size.width - (location.x + size.width), y: location.y }
+        } else {
+            location
+        };
+        *total_content_size = total_content_size.f32_max(compute_content_size_contribution(
+            contribution_location,
+            size,
+            content_size,
+            item.overflow,
+        ));
     }
 }
 
@@ -2097,7 +2127,11 @@ fn final_layout_pass(
         }
     }
 
-    content_size.width += constants.content_box_inset.right - constants.border.right - constants.scrollbar_gutter.x;
+    content_size.width += if constants.layout_direction.is_rtl() {
+        constants.content_box_inset.left - constants.border.left - constants.scrollbar_gutter.x
+    } else {
+        constants.content_box_inset.right - constants.border.right - constants.scrollbar_gutter.x
+    };
     content_size.height += constants.content_box_inset.bottom - constants.border.bottom - constants.scrollbar_gutter.y;
 
     content_size
@@ -2258,36 +2292,72 @@ fn perform_absolute_layout_on_absolute_children(
         // Determine flex-relative insets
         let (start_main, end_main) = if constants.is_row { (left, right) } else { (top, bottom) };
         let (start_cross, end_cross) = if constants.is_row { (top, bottom) } else { (left, right) };
+        let main_axis_is_horizontal = constants.is_row;
+        let cross_axis_is_horizontal = !constants.is_row;
+        let main_is_rtl = main_axis_is_horizontal && constants.layout_direction.is_rtl();
+        let cross_is_rtl = cross_axis_is_horizontal && constants.layout_direction.is_rtl();
+        let main_axis_flex_start_reversed = constants.dir.is_reverse() ^ main_is_rtl;
+        let cross_axis_flex_start_reversed = constants.is_wrap_reverse ^ cross_is_rtl;
+        let main_start_scrollbar_offset =
+            if main_is_rtl { constants.scrollbar_gutter.main(constants.dir) } else { 0.0 };
+        let cross_start_scrollbar_offset =
+            if cross_is_rtl { constants.scrollbar_gutter.cross(constants.dir) } else { 0.0 };
+        let main_end_scrollbar_offset = if main_is_rtl { 0.0 } else { constants.scrollbar_gutter.main(constants.dir) };
+        let cross_end_scrollbar_offset =
+            if cross_is_rtl { 0.0 } else { constants.scrollbar_gutter.cross(constants.dir) };
 
         // Apply main-axis alignment
         // let free_main_space = free_space.main(constants.dir) - resolved_margin.main_axis_sum(constants.dir);
-        let offset_main = if let Some(start) = start_main {
-            start + constants.border.main_start(constants.dir) + resolved_margin.main_start(constants.dir)
-        } else if let Some(end) = end_main {
-            constants.container_size.main(constants.dir)
-                - constants.border.main_end(constants.dir)
-                - constants.scrollbar_gutter.main(constants.dir)
-                - final_size.main(constants.dir)
-                - end
-                - resolved_margin.main_end(constants.dir)
-        } else if constants.is_row && constants.layout_direction.is_rtl() {
-            constants.container_size.main(constants.dir)
-                - constants.content_box_inset.main_end(constants.dir)
-                - final_size.main(constants.dir)
-                - resolved_margin.main_end(constants.dir)
+        let offset_main = if start_main.is_some() || end_main.is_some() {
+            if main_is_rtl && end_main.is_some() {
+                constants.container_size.main(constants.dir)
+                    - constants.border.main_end(constants.dir)
+                    - main_end_scrollbar_offset
+                    - final_size.main(constants.dir)
+                    - end_main.unwrap_or(0.0)
+                    - resolved_margin.main_end(constants.dir)
+            } else if let Some(start) = start_main {
+                start
+                    + constants.border.main_start(constants.dir)
+                    + main_start_scrollbar_offset
+                    + resolved_margin.main_start(constants.dir)
+            } else {
+                constants.container_size.main(constants.dir)
+                    - constants.border.main_end(constants.dir)
+                    - main_end_scrollbar_offset
+                    - final_size.main(constants.dir)
+                    - end_main.unwrap_or(0.0)
+                    - resolved_margin.main_end(constants.dir)
+            }
         } else {
             // Stretch is an invalid value for justify_content in the flexbox algorithm, so we
             // treat it as if it wasn't set (and thus we default to FlexStart behaviour)
-            match (constants.justify_content.unwrap_or(JustifyContent::Start), constants.is_wrap_reverse) {
+            match (constants.justify_content.unwrap_or(JustifyContent::Start), main_axis_flex_start_reversed) {
                 (JustifyContent::SpaceBetween, _)
-                | (JustifyContent::Start, _)
                 | (JustifyContent::Stretch, false)
                 | (JustifyContent::FlexStart, false)
                 | (JustifyContent::FlexEnd, true) => {
                     constants.content_box_inset.main_start(constants.dir) + resolved_margin.main_start(constants.dir)
                 }
-                (JustifyContent::End, _)
-                | (JustifyContent::FlexEnd, false)
+                (JustifyContent::Start, false) => {
+                    constants.content_box_inset.main_start(constants.dir) + resolved_margin.main_start(constants.dir)
+                }
+                (JustifyContent::Start, true) => {
+                    constants.container_size.main(constants.dir)
+                        - constants.content_box_inset.main_end(constants.dir)
+                        - final_size.main(constants.dir)
+                        - resolved_margin.main_end(constants.dir)
+                }
+                (JustifyContent::End, false) => {
+                    constants.container_size.main(constants.dir)
+                        - constants.content_box_inset.main_end(constants.dir)
+                        - final_size.main(constants.dir)
+                        - resolved_margin.main_end(constants.dir)
+                }
+                (JustifyContent::End, true) => {
+                    constants.content_box_inset.main_start(constants.dir) + resolved_margin.main_start(constants.dir)
+                }
+                (JustifyContent::FlexEnd, false)
                 | (JustifyContent::FlexStart, true)
                 | (JustifyContent::Stretch, true) => {
                     constants.container_size.main(constants.dir)
@@ -2309,27 +2379,55 @@ fn perform_absolute_layout_on_absolute_children(
 
         // Apply cross-axis alignment
         // let free_cross_space = free_space.cross(constants.dir) - resolved_margin.cross_axis_sum(constants.dir);
-        let offset_cross = if let Some(start) = start_cross {
-            start + constants.border.cross_start(constants.dir) + resolved_margin.cross_start(constants.dir)
-        } else if let Some(end) = end_cross {
-            constants.container_size.cross(constants.dir)
-                - constants.border.cross_end(constants.dir)
-                - constants.scrollbar_gutter.cross(constants.dir)
-                - final_size.cross(constants.dir)
-                - end
-                - resolved_margin.cross_end(constants.dir)
+        let offset_cross = if start_cross.is_some() || end_cross.is_some() {
+            if cross_is_rtl && end_cross.is_some() {
+                constants.container_size.cross(constants.dir)
+                    - constants.border.cross_end(constants.dir)
+                    - cross_end_scrollbar_offset
+                    - final_size.cross(constants.dir)
+                    - end_cross.unwrap_or(0.0)
+                    - resolved_margin.cross_end(constants.dir)
+            } else if let Some(start) = start_cross {
+                start
+                    + constants.border.cross_start(constants.dir)
+                    + cross_start_scrollbar_offset
+                    + resolved_margin.cross_start(constants.dir)
+            } else {
+                constants.container_size.cross(constants.dir)
+                    - constants.border.cross_end(constants.dir)
+                    - cross_end_scrollbar_offset
+                    - final_size.cross(constants.dir)
+                    - end_cross.unwrap_or(0.0)
+                    - resolved_margin.cross_end(constants.dir)
+            }
         } else {
-            match (align_self, constants.is_wrap_reverse) {
+            match (align_self, cross_axis_flex_start_reversed) {
                 // Stretch alignment does not apply to absolutely positioned items
                 // See "Example 3" at https://www.w3.org/TR/css-flexbox-1/#abspos-items
                 // Note: Stretch should be FlexStart not Start when we support both
-                (AlignSelf::Start, _)
-                | (AlignSelf::Baseline | AlignSelf::Stretch | AlignSelf::FlexStart, false)
+                (AlignSelf::Start, false) => {
+                    constants.content_box_inset.cross_start(constants.dir) + resolved_margin.cross_start(constants.dir)
+                }
+                (AlignSelf::Start, true) => {
+                    constants.container_size.cross(constants.dir)
+                        - constants.content_box_inset.cross_end(constants.dir)
+                        - final_size.cross(constants.dir)
+                        - resolved_margin.cross_end(constants.dir)
+                }
+                (AlignSelf::End, false) => {
+                    constants.container_size.cross(constants.dir)
+                        - constants.content_box_inset.cross_end(constants.dir)
+                        - final_size.cross(constants.dir)
+                        - resolved_margin.cross_end(constants.dir)
+                }
+                (AlignSelf::End, true) => {
+                    constants.content_box_inset.cross_start(constants.dir) + resolved_margin.cross_start(constants.dir)
+                }
+                (AlignSelf::Baseline | AlignSelf::Stretch | AlignSelf::FlexStart, false)
                 | (AlignSelf::FlexEnd, true) => {
                     constants.content_box_inset.cross_start(constants.dir) + resolved_margin.cross_start(constants.dir)
                 }
-                (AlignSelf::End, _)
-                | (AlignSelf::Baseline | AlignSelf::Stretch | AlignSelf::FlexStart, true)
+                (AlignSelf::Baseline | AlignSelf::Stretch | AlignSelf::FlexStart, true)
                 | (AlignSelf::FlexEnd, false) => {
                     constants.container_size.cross(constants.dir)
                         - constants.content_box_inset.cross_end(constants.dir)
@@ -2384,9 +2482,22 @@ fn perform_absolute_layout_on_absolute_children(
                 },
             };
             if size_content_size_contribution.has_non_zero_area() {
+                let absolute_area_offset = Point {
+                    x: constants.border.left
+                        + if constants.layout_direction.is_rtl() { constants.scrollbar_gutter.x } else { 0.0 },
+                    y: constants.border.top,
+                };
+                let relative_location =
+                    Point { x: location.x - absolute_area_offset.x, y: location.y - absolute_area_offset.y };
                 let content_size_contribution = Size {
-                    width: location.x + size_content_size_contribution.width,
-                    height: location.y + size_content_size_contribution.height,
+                    width: if constants.layout_direction.is_rtl() {
+                        let overflow_extra_width =
+                            f32_max(size_content_size_contribution.width - final_size.width, 0.0);
+                        f32_max(inset_relative_size.width - relative_location.x, 0.0) + overflow_extra_width
+                    } else {
+                        relative_location.x + size_content_size_contribution.width
+                    },
+                    height: relative_location.y + size_content_size_contribution.height,
                 };
                 content_size = content_size.f32_max(content_size_contribution);
             }

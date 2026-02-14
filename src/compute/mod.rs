@@ -172,6 +172,7 @@ pub fn compute_root_layout(tree: &mut impl LayoutPartialTree, root: NodeId, avai
         width: if style.overflow().y == Overflow::Scroll { style.scrollbar_width() } else { 0.0 },
         height: if style.overflow().x == Overflow::Scroll { style.scrollbar_width() } else { 0.0 },
     };
+    let direction = style.direction();
     drop(style);
 
     // Recursively compute node layout
@@ -183,12 +184,19 @@ pub fn compute_root_layout(tree: &mut impl LayoutPartialTree, root: NodeId, avai
         SizingMode::InherentSize,
         Line::FALSE,
     );
-
+    let location = Point {
+        x: if direction.is_rtl() {
+            available_space.width.into_option().map_or(0.0, |available_width| available_width - output.size.width)
+        } else {
+            0.0
+        },
+        y: 0.0,
+    };
     tree.set_unrounded_layout(
         root,
         &Layout {
             order: 0,
-            location: Point::ZERO,
+            location,
             size: output.size,
             #[cfg(feature = "content_size")]
             content_size: output.content_size,

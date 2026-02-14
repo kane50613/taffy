@@ -5,7 +5,7 @@ use crate::geometry::{Line, Point, Rect, Size};
 use crate::style::{AlignItems, AlignSelf, AvailableSpace, Overflow, Position};
 use crate::tree::{Layout, LayoutInput, LayoutOutput, LayoutPartialTreeExt, NodeId, RunMode, SizingMode};
 use crate::util::debug::debug_log;
-use crate::util::sys::{f32_max, GridTrackVec, Vec};
+use crate::util::sys::{f32_max, f32_min, GridTrackVec, Vec};
 use crate::util::MaybeMath;
 use crate::util::{MaybeResolve, ResolveOrZero};
 use crate::{
@@ -195,7 +195,7 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
     // Estimate the number of rows and columns in the implicit grid (= the entire grid)
     // This is necessary as part of placement. Doing it early here is a perf optimisation to reduce allocations.
     let (est_col_counts, est_row_counts) =
-        compute_grid_size_estimate(explicit_col_count, explicit_row_count, child_styles_iter);
+        compute_grid_size_estimate(explicit_col_count, explicit_row_count, direction, child_styles_iter);
 
     // 4. Grid Item Placement
     // Match items (children) to a definite grid position (row start/end and column start/end position)
@@ -229,12 +229,38 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
     // This resolves the min and max track sizing functions for all tracks and gutters
     let mut columns = GridTrackVec::new();
     let mut rows = GridTrackVec::new();
-    initialize_grid_tracks(&mut columns, final_col_counts, &style, AbsoluteAxis::Horizontal, |column_index| {
-        cell_occupancy_matrix.column_is_occupied(column_index)
-    });
+    let mut column_track_counts_for_init = final_col_counts;
+    if direction.is_rtl() && final_col_counts.explicit <= 1 {
+        // In this branch we reverse all non-gutter tracks, so initialize implicit tracks mirrored
+        // to keep auto-track cycling aligned with logical grid lines after reversal.
+        column_track_counts_for_init.negative_implicit = final_col_counts.positive_implicit;
+        column_track_counts_for_init.positive_implicit = final_col_counts.negative_implicit;
+    }
+    initialize_grid_tracks(
+        &mut columns,
+        column_track_counts_for_init,
+        &style,
+        AbsoluteAxis::Horizontal,
+        |column_index| {
+            let occupancy_index = if direction.is_rtl() {
+                rtl_column_occupancy_index_for_initialization(
+                    column_index,
+                    final_col_counts.len(),
+                    final_col_counts.negative_implicit,
+                    final_col_counts.explicit,
+                )
+            } else {
+                column_index
+            };
+            cell_occupancy_matrix.column_is_occupied(occupancy_index)
+        },
+    );
     initialize_grid_tracks(&mut rows, final_row_counts, &style, AbsoluteAxis::Vertical, |row_index| {
         cell_occupancy_matrix.row_is_occupied(row_index)
     });
+    if direction.is_rtl() {
+        reverse_non_gutter_tracks(&mut columns, final_col_counts);
+    }
 
     drop(grid_template_rows);
     drop(grid_template_columns);
@@ -248,7 +274,6 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
     // This computation is relatively trivial, but it requires the final number of negative (implicit) tracks in
     // each axis, and doing it up-front here means we don't have to keep repeating that calculation
     resolve_item_track_indexes(&mut items, final_col_counts, final_row_counts);
-
     // For each item, and in each axis, determine whether the item crosses any flexible (fr) tracks
     // Record this as a boolean (per-axis) on each item for later use in the track-sizing algorithm
     determine_if_item_crosses_flexible_or_intrinsic_tracks(&mut items, &columns, &rows);
@@ -477,16 +502,14 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
 
     // 8. Track Alignment
 
-    if direction.is_rtl() {
-        reverse_non_gutter_tracks(&mut columns);
-    }
-
     // Align columns
+    let inline_size_without_scrollbar = f32_max(container_border_box.width - padding_border_size.width, 0.0);
+    let inline_scrollbar_gutter_for_alignment = f32_min(scrollbar_gutter.x, inline_size_without_scrollbar);
     align_tracks(
         container_content_box.get(AbstractAxis::Inline),
         Line {
-            start: padding.left + if direction.is_rtl() { scrollbar_gutter.x } else { 0.0 },
-            end: padding.right + if direction.is_rtl() { 0.0 } else { scrollbar_gutter.x },
+            start: padding.left + if direction.is_rtl() { inline_scrollbar_gutter_for_alignment } else { 0.0 },
+            end: padding.right + if direction.is_rtl() { 0.0 } else { inline_scrollbar_gutter_for_alignment },
         },
         Line { start: border.left, end: border.right },
         &mut columns,
@@ -581,6 +604,11 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
                         })
                         .and_then(|line| line.try_into_track_vec_index(final_col_counts))
                 });
+            let maybe_col_indexes = if direction.is_rtl() {
+                Line { start: maybe_col_indexes.end, end: maybe_col_indexes.start }
+            } else {
+                maybe_col_indexes
+            };
             // Convert grid-row-{start/end} into Option's of indexes into the row vector
             // The Option is None if the style property is Auto and an unresolvable Span
             let maybe_row_indexes = name_resolver
@@ -674,19 +702,55 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
 }
 
 /// Reverses only non-gutter column tracks in-place while preserving line/gutter slots.
-fn reverse_non_gutter_tracks(tracks: &mut [GridTrack]) {
-    // Need at least two non-gutter tracks to reverse (minimum length 5).
-    const MIN_TRACK_VEC_LEN_TO_REVERSE_COLUMNS: usize = 5;
-    if tracks.len() < MIN_TRACK_VEC_LEN_TO_REVERSE_COLUMNS {
+fn reverse_non_gutter_tracks(tracks: &mut [GridTrack], track_counts: TrackCounts) {
+    // When the explicit grid has 0/1 tracks, visual RTL mirroring is entirely determined by implicit tracks.
+    // Reverse all non-gutter tracks in that case.
+    if track_counts.explicit <= 1 {
+        const MIN_TRACK_VEC_LEN_TO_REVERSE_COLUMNS: usize = 5;
+        if tracks.len() < MIN_TRACK_VEC_LEN_TO_REVERSE_COLUMNS {
+            return;
+        }
+        let mut left = 1;
+        let mut right = tracks.len() - 2;
+        while left < right {
+            tracks.swap(left, right);
+            left += 2;
+            right = right.saturating_sub(2);
+        }
         return;
     }
 
-    let mut left = 1;
-    let mut right = tracks.len() - 2;
+    let explicit_track_count = track_counts.explicit as usize;
+    if explicit_track_count < 2 {
+        return;
+    }
+
+    let mut left = track_counts.negative_implicit as usize;
+    let mut right = left + explicit_track_count - 1;
     while left < right {
-        tracks.swap(left, right);
-        left += 2;
-        right = right.saturating_sub(2);
+        tracks.swap((2 * left) + 1, (2 * right) + 1);
+        left += 1;
+        right = right.saturating_sub(1);
+    }
+}
+
+/// Maps initialized column indexes to occupancy-matrix indexes for auto-fit collapsing in RTL.
+fn rtl_column_occupancy_index_for_initialization(
+    column_index: usize,
+    total_track_count: usize,
+    negative_implicit: u16,
+    explicit: u16,
+) -> usize {
+    if explicit <= 1 {
+        return total_track_count - column_index - 1;
+    }
+
+    let explicit_start = negative_implicit as usize;
+    let explicit_end = explicit_start + explicit as usize;
+    if (explicit_start..explicit_end).contains(&column_index) {
+        explicit_start + (explicit_end - column_index - 1)
+    } else {
+        column_index
     }
 }
 
