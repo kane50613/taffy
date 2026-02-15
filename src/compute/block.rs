@@ -948,9 +948,7 @@ fn perform_final_layout_on_in_flow_children(
                 Point {
                     x: match direction {
                         Direction::Ltr => float_avoiding_position.x,
-                        Direction::Rtl => {
-                            float_avoiding_position.x + float_avoiding_width - final_size.width
-                        }
+                        Direction::Rtl => float_avoiding_position.x + float_avoiding_width - final_size.width,
                     },
                     y: float_avoiding_position.y,
                 }
@@ -975,8 +973,7 @@ fn perform_final_layout_on_in_flow_children(
                     x: match direction {
                         Direction::Ltr => float_avoiding_position.x + resolved_margin.left + inset_offset.x,
                         Direction::Rtl => {
-                            float_avoiding_position.x + float_avoiding_width - final_size.width
-                                - resolved_margin.right
+                            float_avoiding_position.x + float_avoiding_width - final_size.width - resolved_margin.right
                                 + inset_offset.x
                         }
                     },
@@ -1004,11 +1001,6 @@ fn perform_final_layout_on_in_flow_children(
                     (TextAlign::LegacyCenter, Direction::Rtl) => location.x -= free_x_space / 2.0,
                 }
             }
-
-            let scrollbar_size = Size {
-                width: if item.overflow.y == Overflow::Scroll { item.scrollbar_width } else { 0.0 },
-                height: if item.overflow.x == Overflow::Scroll { item.scrollbar_width } else { 0.0 },
-            };
 
             tree.set_unrounded_layout(
                 item.node_id,
