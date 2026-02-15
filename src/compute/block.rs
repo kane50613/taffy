@@ -10,12 +10,12 @@ use crate::util::sys::Vec;
 use crate::util::MaybeMath;
 use crate::util::{MaybeResolve, ResolveOrZero};
 use crate::{
-    BlockContainerStyle, BlockItemStyle, BoxGenerationMode, BoxSizing, ContentSlot, Direction, LayoutBlockContainer,
-    RequestedAxis, TextAlign,
+    BlockContainerStyle, BlockItemStyle, BoxGenerationMode, BoxSizing, Direction, LayoutBlockContainer, RequestedAxis,
+    TextAlign,
 };
 
 #[cfg(feature = "float_layout")]
-use super::float::{FloatContext, FloatIntrinsicWidthCalculator};
+use super::float::{ContentSlot, FloatContext, FloatIntrinsicWidthCalculator};
 #[cfg(feature = "float_layout")]
 use crate::{Clear, Float, FloatDirection};
 
@@ -792,13 +792,12 @@ fn perform_final_layout_on_in_flow_children(
 
             let mut y_margin_offset: f32 = 0.0;
 
-            let (stretch_width, float_avoiding_slot) = if item.is_in_same_bfc {
+            let (stretch_width, float_avoiding_position, float_avoiding_width) = if item.is_in_same_bfc {
                 let stretch_width = container_inner_width - item_non_auto_x_margin_sum;
+                let position = Point { x: 0.0, y: 0.0 };
+                let width = 0.0;
 
-                // Dummy slot. Slot is not used in that case that the item is in the same bfc
-                let slot = ContentSlot::default();
-
-                (stretch_width, slot)
+                (stretch_width, position, width)
             } else {
                 'block: {
                     // Set y_margin_offset (different bfc child)
@@ -813,20 +812,15 @@ fn perform_final_layout_on_in_flow_children(
                         let slot = block_ctx.find_content_slot(min_y, item.clear, None);
                         has_active_floats = slot.segment_id.is_some();
                         let stretch_width = slot.width - item_non_auto_x_margin_sum;
-                        break 'block (stretch_width, slot);
+                        break 'block (stretch_width, Point { x: slot.x, y: slot.y }, slot.width);
                     }
 
                     if !has_active_floats {
                         let stretch_width = container_inner_width - item_non_auto_x_margin_sum;
                         break 'block (
                             stretch_width,
-                            ContentSlot {
-                                segment_id: None,
-                                x: resolved_content_box_inset.left,
-                                y: min_y,
-                                width: container_inner_width,
-                                height: f32::INFINITY,
-                            },
+                            Point { x: resolved_content_box_inset.left, y: min_y },
+                            container_inner_width,
                         );
                     }
 
@@ -889,7 +883,6 @@ fn perform_final_layout_on_in_flow_children(
             } else {
                 tree.compute_child_layout(item.node_id, inputs)
             };
-
             let final_size = item_layout.size;
 
             let top_margin_set = item_layout.top_margin.collapse_with_margin(item_margin.top.unwrap_or(0.0));
@@ -954,10 +947,12 @@ fn perform_final_layout_on_in_flow_children(
                 // TODO: handle inset and margins
                 Point {
                     x: match direction {
-                        Direction::Ltr => float_avoiding_slot.left_edge(),
-                        Direction::Rtl => float_avoiding_slot.right_edge() - final_size.width,
+                        Direction::Ltr => float_avoiding_position.x,
+                        Direction::Rtl => {
+                            float_avoiding_position.x + float_avoiding_width - final_size.width
+                        }
                     },
-                    y: float_avoiding_slot.y,
+                    y: float_avoiding_position.y,
                 }
             };
             let mut location = if item.is_in_same_bfc {
@@ -976,15 +971,16 @@ fn perform_final_layout_on_in_flow_children(
                 }
             } else {
                 // TODO: handle inset and margins
-                // TODO: direction for float-avoiding boxes
                 Point {
                     x: match direction {
-                        Direction::Ltr => float_avoiding_slot.left_edge() + resolved_margin.left + inset_offset.x,
+                        Direction::Ltr => float_avoiding_position.x + resolved_margin.left + inset_offset.x,
                         Direction::Rtl => {
-                            float_avoiding_slot.right_edge() - final_size.width - resolved_margin.right + inset_offset.x
+                            float_avoiding_position.x + float_avoiding_width - final_size.width
+                                - resolved_margin.right
+                                + inset_offset.x
                         }
                     },
-                    y: float_avoiding_slot.y + inset_offset.y,
+                    y: float_avoiding_position.y + inset_offset.y,
                 }
             };
 

@@ -34,18 +34,7 @@ pub(super) fn align_tracks(
     let layout_is_reversed = false;
     let is_safe = false; // TODO: Implement safe alignment
     let track_alignment = apply_alignment_fallback(free_space, num_tracks, track_alignment_style, is_safe);
-    let track_alignment = if axis_is_reversed {
-        match track_alignment {
-            AlignContent::Start => AlignContent::End,
-            AlignContent::End => AlignContent::Start,
-            AlignContent::FlexStart => AlignContent::FlexEnd,
-            AlignContent::FlexEnd => AlignContent::FlexStart,
-            AlignContent::Stretch => AlignContent::End,
-            style => style,
-        }
-    } else {
-        track_alignment
-    };
+    let track_alignment = if axis_is_reversed { track_alignment.reversed() } else { track_alignment };
 
     // Compute offsets
     let mut total_offset = origin;

@@ -28,7 +28,23 @@
 
 use core::ops::Range;
 
-use crate::{AvailableSpace, Clear, ContentSlot, FloatDirection, Point, Size};
+use crate::{AvailableSpace, Clear, FloatDirection, Point, Size};
+
+/// An empty "slot" that avoids floats that is suitable for non-floated content
+/// to be laid out into
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ContentSlot {
+    /// The id of the segment that the slot starts in
+    pub segment_id: Option<usize>,
+    /// The x position of the start of the slot
+    pub x: f32,
+    /// The y position of the start of the slot
+    pub y: f32,
+    /// The width of the slot
+    pub width: f32,
+    /// The height of the slot
+    pub height: f32,
+}
 
 /// A floated box
 #[derive(Debug, Clone, Default)]
