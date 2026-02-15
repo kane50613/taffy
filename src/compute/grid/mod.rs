@@ -231,8 +231,6 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
     let mut rows = GridTrackVec::new();
     let mut column_track_counts_for_init = final_col_counts;
     if direction.is_rtl() && final_col_counts.explicit <= 1 {
-        // In this branch we reverse all non-gutter tracks, so initialize implicit tracks mirrored
-        // to keep auto-track cycling aligned with logical grid lines after reversal.
         column_track_counts_for_init.negative_implicit = final_col_counts.positive_implicit;
         column_track_counts_for_init.positive_implicit = final_col_counts.negative_implicit;
     }
@@ -243,12 +241,7 @@ pub fn compute_grid_layout<Tree: LayoutGridContainer>(
         AbsoluteAxis::Horizontal,
         |column_index| {
             let occupancy_index = if direction.is_rtl() {
-                rtl_column_occupancy_index_for_initialization(
-                    column_index,
-                    final_col_counts.len(),
-                    final_col_counts.negative_implicit,
-                    final_col_counts.explicit,
-                )
+                rtl_column_occupancy_index_for_initialization(column_index, final_col_counts)
             } else {
                 column_index
             };
@@ -735,18 +728,13 @@ fn reverse_non_gutter_tracks(tracks: &mut [GridTrack], track_counts: TrackCounts
 }
 
 /// Maps initialized column indexes to occupancy-matrix indexes for auto-fit collapsing in RTL.
-fn rtl_column_occupancy_index_for_initialization(
-    column_index: usize,
-    total_track_count: usize,
-    negative_implicit: u16,
-    explicit: u16,
-) -> usize {
-    if explicit <= 1 {
-        return total_track_count - column_index - 1;
+fn rtl_column_occupancy_index_for_initialization(column_index: usize, track_counts: TrackCounts) -> usize {
+    if track_counts.explicit <= 1 {
+        return track_counts.len() - column_index - 1;
     }
 
-    let explicit_start = negative_implicit as usize;
-    let explicit_end = explicit_start + explicit as usize;
+    let explicit_start = track_counts.negative_implicit as usize;
+    let explicit_end = explicit_start + track_counts.explicit as usize;
     if (explicit_start..explicit_end).contains(&column_index) {
         explicit_start + (explicit_end - column_index - 1)
     } else {

@@ -244,13 +244,11 @@ pub(super) fn place_grid_items<'a, S, ChildIter>(
 
             // If using the "dense" placement algorithm then reset the grid position back to grid_start_position ready for the next item
             // Otherwise set it to the position of the current item so that the next item it placed after it.
-            grid_position = match grid_auto_flow.is_dense() {
-                true => grid_start_position,
-                false => {
-                    let next_primary = if primary_axis_is_reversed { primary_span.start } else { primary_span.end };
-                    (next_primary, secondary_span.start)
-                }
-            }
+            grid_position = match (grid_auto_flow.is_dense(), primary_axis_is_reversed) {
+                (true, _) => grid_start_position,
+                (false, false) => (primary_span.end, secondary_span.start),
+                (false, true) => (primary_span.start, secondary_span.start),
+            };
         });
 }
 
