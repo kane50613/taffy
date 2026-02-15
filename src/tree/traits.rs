@@ -390,7 +390,6 @@ pub(crate) trait LayoutPartialTreeExt: LayoutPartialTree {
 
     /// Perform a full layout on the node given the specified constraints
     #[inline(always)]
-    #[allow(clippy::too_many_arguments)]
     fn perform_child_layout(
         &mut self,
         node_id: NodeId,
