@@ -25,6 +25,7 @@ pub(super) fn align_tracks(
     let used_size: f32 = tracks.iter().map(|track| track.base_size).sum();
     let free_space = grid_container_content_box_size - used_size;
     let origin = padding.start + border.start;
+
     // Count the number of non-collapsed tracks (not counting gutters)
     let num_tracks = tracks.iter().skip(1).step_by(2).filter(|track| !track.is_collapsed).count();
 

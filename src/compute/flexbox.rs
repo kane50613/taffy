@@ -228,11 +228,8 @@ pub fn compute_flexbox_layout(
 fn compute_preliminary(tree: &mut impl LayoutFlexboxContainer, node: NodeId, inputs: LayoutInput) -> LayoutOutput {
     let LayoutInput { known_dimensions, parent_size, available_space, run_mode, .. } = inputs;
 
-    let style = tree.get_flexbox_container_style(node);
-    let direction = style.direction();
-
     // Define some general constants we will need for the remainder of the algorithm.
-    let mut constants = compute_constants(tree, style, known_dimensions, parent_size, direction);
+    let mut constants = compute_constants(tree, tree.get_flexbox_container_style(node), known_dimensions, parent_size);
 
     // 9. Flex Layout Algorithm
 
@@ -381,9 +378,7 @@ fn compute_preliminary(tree: &mut impl LayoutFlexboxContainer, node: NodeId, inp
     let len = tree.child_count(node);
     for order in 0..len {
         let child = tree.get_child_id(node, order);
-        let child_style = tree.get_flexbox_child_style(child);
-        if child_style.box_generation_mode() == BoxGenerationMode::None {
-            drop(child_style);
+        if tree.get_flexbox_child_style(child).box_generation_mode() == BoxGenerationMode::None {
             tree.set_unrounded_layout(child, &Layout::with_order(order as u32));
             tree.perform_child_layout(
                 child,
@@ -426,7 +421,6 @@ fn compute_constants(
     style: impl FlexboxContainerStyle,
     known_dimensions: Size<Option<f32>>,
     parent_size: Size<Option<f32>>,
-    layout_direction: Direction,
 ) -> AlgoConstants {
     let dir = style.flex_direction();
     let is_row = dir.is_row();
@@ -445,6 +439,7 @@ fn compute_constants(
     let align_items = style.align_items().unwrap_or(AlignItems::Stretch);
     let align_content = style.align_content().unwrap_or(AlignContent::Stretch);
     let justify_content = style.justify_content();
+    let layout_direction = style.direction();
 
     // Scrollbar gutters are reserved when the `overflow` property is set to `Overflow::Scroll`.
     // However, the axis are switched (transposed) because a node that scrolls vertically needs
@@ -453,7 +448,6 @@ fn compute_constants(
         Overflow::Scroll => style.scrollbar_width(),
         _ => 0.0,
     });
-
     let mut content_box_inset = padding + border;
     content_box_inset.bottom += scrollbar_gutter.y;
 
@@ -1969,17 +1963,14 @@ fn calculate_flex_item(
         item.baseline = baseline_offset_main + inner_baseline;
     }
 
+    let location = match (direction.is_row(), layout_direction) {
+        (true, Direction::Ltr) => Point { x: offset_main, y: offset_cross },
+        (true, Direction::Rtl) => Point { x: container_size.width - (offset_main + size.width), y: offset_cross },
+        (false, _) => Point { x: offset_cross, y: offset_main }
+    };
     let scrollbar_size = Size {
         width: if item.overflow.y == Overflow::Scroll { item.scrollbar_width } else { 0.0 },
         height: if item.overflow.x == Overflow::Scroll { item.scrollbar_width } else { 0.0 },
-    };
-    let location = if direction.is_row() {
-        Point {
-            x: if layout_direction.is_rtl() { container_size.width - (offset_main + size.width) } else { offset_main },
-            y: offset_cross,
-        }
-    } else {
-        Point { x: offset_cross, y: offset_main }
     };
 
     tree.set_unrounded_layout(
