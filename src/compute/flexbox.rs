@@ -1966,7 +1966,7 @@ fn calculate_flex_item(
     let location = match (direction.is_row(), layout_direction) {
         (true, Direction::Ltr) => Point { x: offset_main, y: offset_cross },
         (true, Direction::Rtl) => Point { x: container_size.width - (offset_main + size.width), y: offset_cross },
-        (false, _) => Point { x: offset_cross, y: offset_main }
+        (false, _) => Point { x: offset_cross, y: offset_main },
     };
     let scrollbar_size = Size {
         width: if item.overflow.y == Overflow::Scroll { item.scrollbar_width } else { 0.0 },
