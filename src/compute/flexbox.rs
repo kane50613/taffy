@@ -1941,7 +1941,7 @@ fn calculate_flex_item(
     let effective_line_offset_cross = if is_rtl_column { 0.0 } else { line_offset_cross };
 
     let offset_main = if is_rtl_row {
-        *total_offset_main + item.offset_main + item.margin.main_end(direction) + main_relative_inset
+        *total_offset_main - item.offset_main - item.margin.main_end(direction) - main_relative_inset - size.width
     } else {
         *total_offset_main + item.offset_main + item.margin.main_start(direction) + main_relative_inset
     };
@@ -1963,10 +1963,10 @@ fn calculate_flex_item(
         item.baseline = baseline_offset_main + inner_baseline;
     }
 
-    let location = match (direction.is_row(), layout_direction) {
-        (true, Direction::Ltr) => Point { x: offset_main, y: offset_cross },
-        (true, Direction::Rtl) => Point { x: container_size.width - (offset_main + size.width), y: offset_cross },
-        (false, _) => Point { x: offset_cross, y: offset_main },
+    let location = if direction.is_row() {
+        Point { x: offset_main, y: offset_cross }
+    } else {
+        Point { x: offset_cross, y: offset_main }
     };
     let scrollbar_size = Size {
         width: if item.overflow.y == Overflow::Scroll { item.scrollbar_width } else { 0.0 },
@@ -1988,7 +1988,11 @@ fn calculate_flex_item(
         },
     );
 
-    *total_offset_main += item.offset_main + item.margin.main_axis_sum(direction) + size.main(direction);
+    if is_rtl_row {
+        *total_offset_main -= item.offset_main + item.margin.main_axis_sum(direction) + size.main(direction);
+    } else {
+        *total_offset_main += item.offset_main + item.margin.main_axis_sum(direction) + size.main(direction);
+    }
 
     #[cfg(feature = "content_size")]
     {
@@ -2020,7 +2024,7 @@ fn calculate_layout_line(
     layout_direction: Direction,
 ) {
     let mut total_offset_main = if layout_direction.is_rtl() && direction.is_row() {
-        padding_border.main_end(direction)
+        container_size.width - padding_border.main_end(direction)
     } else {
         padding_border.main_start(direction)
     };
